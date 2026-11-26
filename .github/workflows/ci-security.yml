@@ -1,0 +1,65 @@
+name: Security & Container CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  guard-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enforce Zero Python Files Policy
+        run: |
+          PY_COUNT=$(find . -type f -name '*.py' -not -path './.git/*' | wc -l)
+          if [ "$PY_COUNT" -ne 0 ]; then
+            echo "ERROR: Python files are forbidden in this repository."
+            find . -type f -name '*.py' -not -path './.git/*'
+            exit 1
+          fi
+
+      - name: Check JS Syntax
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: |
+          for f in backend/src/*.js backend/src/routes/*.js frontend/js/*.js; do
+            node --check "$f"
+          done
+
+      - name: Validate Shell Scripts
+        run: |
+          for s in scripts/*.sh; do
+            bash -n "$s"
+          done
+
+  container-scan:
+    runs-on: ubuntu-latest
+    needs: guard-and-lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Hardened Docker Images
+        run: |
+          docker build -t smart-inventory-backend:ci ./backend
+          docker build -t smart-inventory-frontend:ci ./frontend
+
+      - name: Trivy Scan Backend
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: smart-inventory-backend:ci
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Trivy Scan Frontend
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: smart-inventory-frontend:ci
+          severity: HIGH,CRITICAL
+          exit-code: "1"

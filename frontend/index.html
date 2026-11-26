@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Inventory Manager</title>
+  <meta name="description" content="Hardened real-time inventory management with cryptographic audit trails and AI demand forecasting.">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Toast Region -->
+  <div id="toast-region" class="toast-region" role="status" aria-live="polite"></div>
+
+  <!-- Auth Gate -->
+  <section id="auth-screen" class="auth-screen">
+    <div class="auth-card">
+      <div class="brand-row">
+        <div class="brand-mark" aria-hidden="true">SI</div>
+        <div>
+          <h1 class="brand-title">Smart Inventory</h1>
+          <p class="brand-sub">Zero-Trust Inventory &amp; AI Forecasting</p>
+        </div>
+      </div>
+
+      <div class="tab-switch" role="tablist">
+        <button id="tab-login" class="tab-btn active" type="button" role="tab" aria-selected="true">Sign In</button>
+        <button id="tab-register" class="tab-btn" type="button" role="tab" aria-selected="false">Create Account</button>
+      </div>
+
+      <form id="auth-form" class="form-stack" novalidate>
+        <div id="auth-name-group" class="field hidden">
+          <label for="auth-name">Full Name</label>
+          <input id="auth-name" type="text" autocomplete="name" placeholder="Katta Sai Sri Harsha">
+        </div>
+        <div class="field">
+          <label for="auth-email">Email</label>
+          <input id="auth-email" type="email" autocomplete="email" required placeholder="admin@inventory.local">
+        </div>
+        <div class="field">
+          <label for="auth-password">Password</label>
+          <input id="auth-password" type="password" autocomplete="current-password" required placeholder="Enter password">
+        </div>
+
+        <ul id="pw-checklist" class="pw-checklist hidden" aria-label="Password requirements">
+          <li data-rule="len">At least 12 characters</li>
+          <li data-rule="upper">One uppercase letter</li>
+          <li data-rule="lower">One lowercase letter</li>
+          <li data-rule="num">One number</li>
+          <li data-rule="sym">One special character</li>
+        </ul>
+
+        <p id="auth-error" class="form-error hidden" role="alert"></p>
+
+        <button id="auth-submit" type="submit" class="btn btn-primary btn-full">Sign In</button>
+      </form>
+
+      <p class="auth-footnote">
+        Protected with Argon2id + HMAC-SHA256 pepper, HttpOnly strict cookies, CSRF double-submit tokens, and SHA-256 hash-chained audit logs.
+      </p>
+    </div>
+  </section>
+
+  <!-- Main App Shell -->
+  <div id="app-shell" class="app-shell hidden">
+    <!-- Desktop Sidebar -->
+    <aside class="sidebar" aria-label="Primary Navigation">
+      <div class="sidebar-top">
+        <div class="brand-row">
+          <div class="brand-mark" aria-hidden="true">SI</div>
+          <div>
+            <div class="brand-title-sm">Smart Inventory</div>
+            <div class="brand-sub-sm">Hardened v2.0</div>
+          </div>
+        </div>
+
+        <nav class="side-nav">
+          <button type="button" class="nav-link active" data-view="dash">Dashboard</button>
+          <button type="button" class="nav-link" data-view="inv">Inventory</button>
+          <button type="button" class="nav-link" data-view="form">Add Item</button>
+          <button type="button" class="nav-link" data-view="scan">QR Verify</button>
+          <button type="button" class="nav-link" data-view="analytics">AI &amp; Audit</button>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-card">
+          <div id="user-name" class="user-name">User</div>
+          <div class="user-meta">
+            <span id="user-role" class="role-pill">staff</span>
+          </div>
+        </div>
+        <button id="btn-manage-users" type="button" class="btn btn-secondary btn-full hidden">Manage Team</button>
+        <button id="btn-logout" type="button" class="btn btn-ghost btn-full">Sign Out</button>
+      </div>
+    </aside>
+
+    <!-- Content Area -->
+    <div class="main-wrap">
+      <header class="topbar">
+        <div>
+          <h2 id="page-title" class="page-title">Dashboard</h2>
+          <p id="page-subtitle" class="page-subtitle">Real-time stock health, alerts, and cryptographic activity</p>
+        </div>
+        <div class="topbar-actions">
+          <button id="btn-export-csv" type="button" class="btn btn-secondary">Export CSV</button>
+          <button id="btn-sync-stock" type="button" class="btn btn-secondary">Sync Alerts</button>
+          <button id="btn-quick-add" type="button" class="btn btn-primary">+ Add Item</button>
+        </div>
+      </header>
+
+      <!-- Low Stock Alert Strip -->
+      <div id="alert-banner" class="alert-banner hidden" role="status">
+        <span id="alert-text"></span>
+        <button id="btn-view-low" type="button" class="btn-link">Review low stock</button>
+      </div>
+
+      <main class="content">
+        <!-- Dashboard View -->
+        <section id="view-dash" class="view">
+          <div id="kpi-grid" class="kpi-grid"></div>
+
+          <div class="dash-grid">
+            <div class="panel">
+              <div class="panel-head">
+                <h3>AI Insights &amp; Recommendations</h3>
+                <button id="btn-open-analytics" type="button" class="btn-link">Full report</button>
+              </div>
+              <div id="insights-list" class="stack"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h3>Recent Hash-Chained Activity</h3>
+                <button id="btn-verify-shortcut" type="button" class="btn-link">Verify chain</button>
+              </div>
+              <div id="recent-activity" class="stack"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Inventory View -->
+        <section id="view-inv" class="view hidden">
+          <div class="toolbar">
+            <input id="search-input" type="search" class="input search-input" placeholder="Search by name, SKU, or description..." aria-label="Search inventory">
+            <select id="filter-cat" class="select" aria-label="Filter by category">
+              <option value="">All Categories</option>
+            </select>
+            <select id="sort-select" class="select" aria-label="Sort items">
+              <option value="name">Sort: Name (A-Z)</option>
+              <option value="quantity">Sort: Lowest Stock</option>
+              <option value="value">Sort: Highest Value</option>
+              <option value="recent">Sort: Recently Updated</option>
+            </select>
+            <div class="view-toggle" role="group" aria-label="Layout view">
+              <button id="btn-layout-cards" type="button" class="toggle-btn active">Cards</button>
+              <button id="btn-layout-table" type="button" class="toggle-btn">Table</button>
+            </div>
+          </div>
+
+          <div id="status-chips" class="chip-row" role="group" aria-label="Filter by stock status">
+            <button type="button" class="chip active" data-status="">All</button>
+            <button type="button" class="chip" data-status="ok">In Stock</button>
+            <button type="button" class="chip" data-status="low">Low Stock</button>
+            <button type="button" class="chip" data-status="out">Out of Stock</button>
+          </div>
+
+          <div id="items-container" class="items-grid"></div>
+          <div id="empty-state" class="empty-state hidden">
+            <h3>No matching inventory items</h3>
+            <p>Adjust your search filters or create a new SKU.</p>
+            <button id="btn-empty-add" type="button" class="btn btn-primary">Add New Item</button>
+          </div>
+        </section>
+
+        <!-- Item Form View -->
+        <section id="view-form" class="view hidden">
+          <div class="panel form-panel">
+            <h3 id="form-title" class="panel-title">Add New Item</h3>
+            <form id="item-form" class="form-stack">
+              <input type="hidden" id="f-id">
+              <div class="field">
+                <label for="f-name">Item Name *</label>
+                <input id="f-name" type="text" required maxlength="160" placeholder="e.g., USB-C Cables">
+              </div>
+
+              <div class="grid-2">
+                <div class="field">
+                  <div class="label-row">
+                    <label for="f-cat">Category</label>
+                    <button id="btn-new-cat" type="button" class="btn-link">+ New Category</button>
+                  </div>
+                  <select id="f-cat" class="select"></select>
+                </div>
+                <div class="field">
+                  <label for="f-sku">SKU</label>
+                  <input id="f-sku" type="text" maxlength="64" placeholder="ELC-USBC-001">
+                </div>
+              </div>
+
+              <div class="grid-3">
+                <div class="field">
+                  <label for="f-qty">Quantity</label>
+                  <input id="f-qty" type="number" min="0" max="1000000" value="0" required>
+                </div>
+                <div class="field">
+                  <label for="f-thresh">Low Stock Threshold</label>
+                  <input id="f-thresh" type="number" min="0" max="1000000" value="5" required>
+                </div>
+                <div class="field">
+                  <label for="f-price">Unit Price ($)</label>
+                  <input id="f-price" type="number" min="0" max="10000000" step="0.01" value="0.00" required>
+                </div>
+              </div>
+
+              <div class="grid-2">
+                <div class="field">
+                  <label for="f-unit">Unit</label>
+                  <input id="f-unit" type="text" maxlength="32" value="pcs" placeholder="pcs, rolls, boxes">
+                </div>
+                <div class="field checkbox-wrap">
+                  <label class="checkbox-label">
+                    <input id="f-qr" type="checkbox" checked>
+                    <span>Generate HMAC-signed QR code</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="f-desc">Description</label>
+                <textarea id="f-desc" rows="3" maxlength="1000" placeholder="Optional storage location or supplier notes"></textarea>
+              </div>
+
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save Item</button>
+                <button id="btn-cancel-form" type="button" class="btn btn-secondary">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- Item Detail View -->
+        <section id="view-detail" class="view hidden">
+          <div id="detail-content"></div>
+        </section>
+
+        <!-- QR Scanner & HMAC Verifier View -->
+        <section id="view-scan" class="view hidden">
+          <div class="dash-grid">
+            <div class="panel">
+              <div class="panel-head">
+                <h3>Camera QR Scanner</h3>
+                <button id="btn-toggle-camera" type="button" class="btn btn-secondary">Start Camera</button>
+              </div>
+              <div class="scanner-box">
+                <video id="qr-video" class="qr-video hidden" playsinline muted></video>
+                <p id="scanner-status" class="muted-text">Click Start Camera to scan signed inventory QR labels using native BarcodeDetector.</p>
+              </div>
+            </div>
+
+            <div class="panel">
+              <h3 class="panel-title">Verify Signed QR Payload</h3>
+              <p class="muted-text mb-12">Paste a raw JSON QR payload to validate its HMAC-SHA256 signature against the server.</p>
+              <form id="qr-verify-form" class="form-stack">
+                <textarea id="qr-payload-input" rows="4" placeholder='{"id":1,"name":"USB-C Cables","type":"inventory_item","sig":"..."}'></textarea>
+                <button type="submit" class="btn btn-primary">Verify Signature &amp; Open Item</button>
+              </form>
+              <div id="scan-result" class="scan-result hidden"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- AI Analytics & Audit Ledger View -->
+        <section id="view-analytics" class="view hidden">
+          <div class="panel mb-16">
+            <div class="panel-head">
+              <div>
+                <h3>Cryptographic Audit Ledger Integrity</h3>
+                <p class="muted-text">Recomputes every SHA-256 chain link from genesis across all inventory mutations.</p>
+              </div>
+              <button id="btn-verify-chain" type="button" class="btn btn-primary">Verify Ledger</button>
+            </div>
+            <div id="audit-status-box" class="audit-box">Click Verify Ledger to run a full SHA-256 chain check.</div>
+          </div>
+
+          <div class="panel mb-16">
+            <div class="panel-head">
+              <h3>14-Day Demand &amp; Depletion Forecast</h3>
+              <select id="forecast-item-select" class="select" aria-label="Select item for forecast"></select>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="forecast-chart" width="840" height="280"></canvas>
+            </div>
+          </div>
+
+          <div id="analytics-content" class="stack"></div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="mobile-nav" aria-label="Mobile Navigation">
+      <button type="button" class="mnav-btn active" data-view="dash">Home</button>
+      <button type="button" class="mnav-btn" data-view="inv">Items</button>
+      <button type="button" class="mnav-btn mnav-add" data-view="form">+ Add</button>
+      <button type="button" class="mnav-btn" data-view="scan">Scan</button>
+      <button type="button" class="mnav-btn" data-view="analytics">AI</button>
+    </nav>
+  </div>
+
+  <!-- Accessible Modal -->
+  <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div id="modal-box" class="modal-box"></div>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

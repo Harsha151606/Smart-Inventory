@@ -1,0 +1,11 @@
+.git
+.gitignore
+*.md
+*.py
+*.db
+.env
+.env.*
+k8s/
+node_modules/
+**/node_modules/
+.DS_Store

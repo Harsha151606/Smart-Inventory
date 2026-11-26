@@ -1,0 +1,30 @@
+# Block all Python files from Git
+*.py
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+.venv/
+venv/
+requirements.txt
+*.db
+*.sqlite
+*.sqlite3
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+dist/
+build/
+
+# Secrets & Environment
+.env
+.env.*
+!.env.example
+k8s/secrets.yaml
+
+# IDE & OS
+.DS_Store
+.vscode/
+.idea/

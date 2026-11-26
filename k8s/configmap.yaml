@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inventory-config
+  namespace: smart-inventory
+data:
+  NODE_ENV: "production"
+  PORT: "8000"
+  COOKIE_SECURE: "true"
+  CORS_ORIGIN: "https://inventory.example.com"
+  ALLOW_PUBLIC_REGISTRATION: "false"
