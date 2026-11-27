@@ -63,18 +63,34 @@ export default function AuthView({ authStatus, onAuthSuccess, addToast, theme, o
     <section id="auth-screen" className="auth-screen">
       <div className="auth-card">
         <div className="auth-header-row">
-          <div className="brand-row brand-row-compact">
-            <div className="brand-mark" aria-hidden="true">SI</div>
+          <div className="brand-row">
+            <div className="brand-mark" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+                <path d="m3.3 7 8.7 5 8.7-5" />
+                <path d="M12 22V12" />
+              </svg>
+            </div>
             <div>
               <h1 className="brand-title">Smart Inventory</h1>
-              <p className="brand-sub">Zero-Trust Inventory &amp; AI Forecasting</p>
+              <p className="brand-sub">Enterprise Warehouse Operations</p>
             </div>
           </div>
+
           <ThemeToggle
             id="btn-theme-toggle"
             theme={theme}
             onToggle={onToggleTheme}
-            className="btn btn-ghost theme-toggle-btn theme-toggle-compact"
+            className="btn theme-toggle-btn"
           />
         </div>
 
@@ -111,7 +127,7 @@ export default function AuthView({ authStatus, onAuthSuccess, addToast, theme, o
                 id="auth-name"
                 type="text"
                 autoComplete="name"
-                placeholder="Katta Sai Sri Harsha"
+                placeholder="Warehouse Operator"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
@@ -119,7 +135,7 @@ export default function AuthView({ authStatus, onAuthSuccess, addToast, theme, o
           )}
 
           <div className="field">
-            <label htmlFor="auth-email">Email</label>
+            <label htmlFor="auth-email">Work Email</label>
             <input
               id="auth-email"
               type="email"
@@ -146,11 +162,11 @@ export default function AuthView({ authStatus, onAuthSuccess, addToast, theme, o
 
           {isReg && (
             <ul className="pw-checklist" aria-label="Password requirements">
-              <li className={pwRules.len ? 'pass' : ''}>At least 12 characters</li>
-              <li className={pwRules.upper ? 'pass' : ''}>One uppercase letter</li>
-              <li className={pwRules.lower ? 'pass' : ''}>One lowercase letter</li>
-              <li className={pwRules.num ? 'pass' : ''}>One number</li>
-              <li className={pwRules.sym ? 'pass' : ''}>One special character</li>
+              <li className={pwRules.len ? 'pass' : ''}>12+ characters</li>
+              <li className={pwRules.upper ? 'pass' : ''}>Uppercase letter</li>
+              <li className={pwRules.lower ? 'pass' : ''}>Lowercase letter</li>
+              <li className={pwRules.num ? 'pass' : ''}>Number</li>
+              <li className={pwRules.sym ? 'pass' : ''}>Special symbol</li>
             </ul>
           )}
 
@@ -161,12 +177,12 @@ export default function AuthView({ authStatus, onAuthSuccess, addToast, theme, o
           )}
 
           <button id="auth-submit" type="submit" className="btn btn-primary btn-full" disabled={submitting}>
-            {submitting ? 'Please wait...' : isReg ? 'Create Account' : 'Sign In'}
+            {submitting ? 'Signing in…' : isReg ? 'Create Account' : 'Sign In'}
           </button>
         </form>
 
         <p className="auth-footnote">
-          Protected with Argon2id + HMAC-SHA256 pepper, HttpOnly strict cookies, CSRF double-submit tokens, and SHA-256 hash-chained audit logs.
+          Argon2id authentication · CSRF protected · Immutable SHA-256 ledger
         </p>
       </div>
     </section>

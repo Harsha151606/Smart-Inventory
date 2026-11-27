@@ -114,3 +114,57 @@ export async function api(url, opts = {}, retryAuth = true) {
 
   return payload;
 }
+
+export async function fetchVehicles({ status = '', search = '' } = {}) {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (search) params.set('search', search);
+  const qs = params.toString();
+  return api(`/api/vehicles${qs ? `?${qs}` : ''}`);
+}
+
+export async function createVehicle(payload) {
+  return api('/api/vehicles', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': generateIdempotencyKey() },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateVehicle(id, payload) {
+  return api(`/api/vehicles/${id}`, {
+    method: 'PATCH',
+    headers: { 'Idempotency-Key': generateIdempotencyKey() },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteVehicle(id) {
+  return api(`/api/vehicles/${id}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function fetchDeliveries({ status = '', search = '' } = {}) {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (search) params.set('search', search);
+  const qs = params.toString();
+  return api(`/api/deliveries${qs ? `?${qs}` : ''}`);
+}
+
+export async function createDelivery(payload) {
+  return api('/api/deliveries', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': generateIdempotencyKey() },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateDeliveryStatus(id, status) {
+  return api(`/api/deliveries/${id}/status`, {
+    method: 'PATCH',
+    headers: { 'Idempotency-Key': generateIdempotencyKey() },
+    body: JSON.stringify({ status })
+  });
+}

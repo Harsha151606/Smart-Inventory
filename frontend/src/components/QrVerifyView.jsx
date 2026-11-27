@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
+import { formatMoney, statusLabel, statusOf } from '../utils/format.js';
 
 export default function QrVerifyView({ onOpenItem, addToast }) {
   const videoRef = useRef(null);
@@ -8,7 +9,7 @@ export default function QrVerifyView({ onOpenItem, addToast }) {
 
   const [cameraActive, setCameraActive] = useState(false);
   const [scannerStatus, setScannerStatus] = useState(
-    'Click Start Camera to scan signed inventory QR labels using native BarcodeDetector.'
+    'Start camera to scan signed inventory QR labels via native BarcodeDetector.'
   );
   const [payloadInput, setPayloadInput] = useState('');
   const [verifying, setVerifying] = useState(false);
@@ -60,7 +61,7 @@ export default function QrVerifyView({ onOpenItem, addToast }) {
 
     if (!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) {
       setScannerStatus(
-        'Native BarcodeDetector camera scanning is unavailable in this browser. Paste a signed QR payload on the right to verify.'
+        'Native BarcodeDetector scanning is unavailable in this browser. Paste a signed QR payload on the right.'
       );
       return;
     }
@@ -111,16 +112,18 @@ export default function QrVerifyView({ onOpenItem, addToast }) {
     await verifyQrText(trimmed);
   }
 
+  const verifiedCls = scanResult?.item ? statusOf(scanResult.item) : 'ok';
+
   return (
     <section id="view-scan" className="view">
-      <div className="dash-grid">
-        <div className="panel">
-          <div className="panel-head">
-            <h3>Camera QR Scanner</h3>
+      <div className="qr-verify-grid">
+        <div className="card">
+          <div className="card-head">
+            <h3 className="card-title">Camera QR Scanner</h3>
             <button
               id="btn-toggle-camera"
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-secondary btn-sm"
               onClick={handleToggleCamera}
             >
               {cameraActive ? 'Stop Camera' : 'Start Camera'}
@@ -142,10 +145,17 @@ export default function QrVerifyView({ onOpenItem, addToast }) {
           </div>
         </div>
 
-        <div className="panel">
-          <h3 className="panel-title">Verify Signed QR Payload</h3>
-          <p className="muted-text mb-16">
-            Paste a raw JSON QR payload to validate its HMAC-SHA256 signature against the server.
+        <div className="card">
+          <div className="card-head">
+            <h3 className="card-title">Manual SKU &amp; Signature Verification</h3>
+            {scanResult && (
+              <span className={`badge ${scanResult.valid ? 'badge-ok' : 'badge-out'}`}>
+                {scanResult.valid ? 'Verified' : 'Unverified'}
+              </span>
+            )}
+          </div>
+          <p className="muted-text mb-12">
+            Paste a signed QR JSON payload to validate its HMAC-SHA256 signature and read live stock.
           </p>
           <form id="qr-verify-form" className="form-stack" onSubmit={handleSubmit}>
             <textarea
@@ -156,33 +166,45 @@ export default function QrVerifyView({ onOpenItem, addToast }) {
               onChange={(e) => setPayloadInput(e.target.value)}
             />
             <button type="submit" className="btn btn-primary" disabled={verifying}>
-              {verifying ? 'Verifying...' : 'Verify Signature & Open Item'}
+              {verifying ? 'Verifying...' : 'Verify Signature'}
             </button>
           </form>
 
           {scanResult && (
             <div id="scan-result" className="scan-result">
               {scanResult.valid ? (
-                <>
-                  <strong className="text-ok">HMAC-SHA256 Verified</strong>
-                  <p className="muted-text mb-16 tabular-nums">
-                    {`${scanResult.item.name} · Stock: ${scanResult.item.quantity} ${scanResult.item.unit}`}
-                  </p>
+                <div className="list-stack">
+                  <div className="label-row">
+                    <strong>{scanResult.item.name}</strong>
+                    <span className={`badge badge-${verifiedCls}`}>
+                      {statusLabel(verifiedCls)}
+                    </span>
+                  </div>
+                  <div className="compact-row">
+                    <span className="muted-text">Stock on hand</span>
+                    <strong className="tabular-nums">
+                      {`${scanResult.item.quantity} ${scanResult.item.unit || 'pcs'}`}
+                    </strong>
+                  </div>
+                  <div className="compact-row">
+                    <span className="muted-text">Unit price</span>
+                    <strong className="tabular-nums">{formatMoney(scanResult.item.unit_price)}</strong>
+                  </div>
                   <button
                     type="button"
-                    className="btn btn-primary"
+                    className="btn btn-secondary btn-sm"
                     onClick={() => onOpenItem(scanResult.item.id)}
                   >
-                    Open Item Details
+                    Open in Inspector
                   </button>
-                </>
+                </div>
               ) : (
-                <>
+                <div>
                   <strong className="text-danger">Signature Rejected</strong>
                   <p className="muted-text">
                     This QR payload failed HMAC-SHA256 authenticity checks.
                   </p>
-                </>
+                </div>
               )}
             </div>
           )}

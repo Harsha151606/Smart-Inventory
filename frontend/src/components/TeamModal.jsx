@@ -77,7 +77,7 @@ export default function TeamModal({ isOpen, onClose, addToast }) {
     >
       <div className="modal-box">
         <div className="modal-header">
-          <h3 id="team-modal-title" className="panel-title">Team Access Management</h3>
+          <h3 id="team-modal-title" className="modal-title">Team Access Management</h3>
           <button
             type="button"
             className="modal-close-btn"
@@ -89,15 +89,15 @@ export default function TeamModal({ isOpen, onClose, addToast }) {
           </button>
         </div>
 
-        <div className="stack mb-16 team-users-list">
+        <div className="list-stack mb-16 team-users-list">
           {loading && !users.length ? (
-            <p className="muted-text">Loading team members...</p>
+            <p className="muted-text">Loading team members…</p>
           ) : (
             users.map((u) => (
-              <div key={u.id} className="activity-row">
+              <div key={u.id} className="compact-row">
                 <div>
-                  <strong>{u.name}</strong>
-                  <div className="muted-text">{u.email}</div>
+                  <div className="compact-row-title">{u.name}</div>
+                  <div className="compact-row-sub">{u.email}</div>
                 </div>
                 <span className="role-pill">{u.role}</span>
               </div>
@@ -106,52 +106,56 @@ export default function TeamModal({ isOpen, onClose, addToast }) {
         </div>
 
         <form className="form-stack" onSubmit={handleSubmit}>
-          <div className="field">
-            <label htmlFor="team-new-name">New Member Name</label>
-            <input
-              id="team-new-name"
-              type="text"
-              required
-              placeholder="Staff full name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+          <div className="grid-2">
+            <div className="field">
+              <label htmlFor="team-new-name">New Member Name</label>
+              <input
+                id="team-new-name"
+                type="text"
+                required
+                placeholder="Staff full name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="team-new-email">Email</label>
+              <input
+                id="team-new-email"
+                type="email"
+                required
+                placeholder="staff@inventory.local"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
           </div>
 
-          <div className="field">
-            <label htmlFor="team-new-email">Email</label>
-            <input
-              id="team-new-email"
-              type="email"
-              required
-              placeholder="staff@inventory.local"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
+          <div className="grid-2">
+            <div className="field">
+              <label htmlFor="team-new-pass">Temporary Strong Password</label>
+              <input
+                id="team-new-pass"
+                type="password"
+                required
+                placeholder="12+ chars (upper/lower/num/symbol)"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
 
-          <div className="field">
-            <label htmlFor="team-new-pass">Temporary Strong Password</label>
-            <input
-              id="team-new-pass"
-              type="password"
-              required
-              placeholder="12+ chars (upper/lower/num/symbol)"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="team-new-role">Role</label>
-            <select
-              id="team-new-role"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-            >
-              <option value="staff">Staff (Read/Write Stock)</option>
-              <option value="admin">Admin (Full Control)</option>
-            </select>
+            <div className="field">
+              <label htmlFor="team-new-role">Role</label>
+              <select
+                id="team-new-role"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+              >
+                <option value="staff">Staff (Read/Write Stock)</option>
+                <option value="admin">Admin (Full Control)</option>
+              </select>
+            </div>
           </div>
 
           <div className="form-actions">

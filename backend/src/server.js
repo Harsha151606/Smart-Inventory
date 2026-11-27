@@ -12,6 +12,8 @@ import { createAuthRouter } from './routes/auth.js';
 import { createItemsRouter } from './routes/items.js';
 import { createCategoriesRouter } from './routes/categories.js';
 import { createAnalyticsRouter } from './routes/analytics.js';
+import { createVehiclesRouter } from './routes/vehicles.js';
+import { createDeliveriesRouter } from './routes/deliveries.js';
 import { createRateLimiter } from './middleware/rateLimiter.js';
 import { createCacheMiddleware } from './middleware/cache.js';
 import { createIdempotencyMiddleware } from './middleware/idempotency.js';
@@ -113,7 +115,7 @@ function buildApp(redisClient) {
   app.use(cors({
     origin: config.corsOrigin,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'Idempotency-Key']
   }));
 
@@ -147,18 +149,22 @@ function buildApp(redisClient) {
   // Auth endpoints (public login/register/refresh/status + protected /me & /users)
   app.use('/api/auth', createAuthRouter(authLimiter));
 
-  // Cache middleware for catalog GET routes (applied after auth)
+  // Cache middleware for catalog & fleet GET routes (applied after auth)
   const cacheItems = createCacheMiddleware(redisClient, { ttlSeconds: 60, prefix: 'cache:' });
   app.get('/api/items', requireAuth, cacheItems);
   app.get('/api/categories', requireAuth, cacheItems);
+  app.get('/api/vehicles', requireAuth, cacheItems);
+  app.get('/api/deliveries', requireAuth, cacheItems);
 
   // Idempotency middleware for inventory write routes (POST/PATCH)
   app.use('/api', requireAuth, createIdempotencyMiddleware(redisClient));
 
-  // Protected inventory endpoints
+  // Protected inventory & fleet endpoints
   app.use('/api', requireAuth, createItemsRouter(redisClient));
   app.use('/api', requireAuth, createCategoriesRouter(redisClient));
   app.use('/api', requireAuth, createAnalyticsRouter(redisClient));
+  app.use('/api', requireAuth, createVehiclesRouter(redisClient));
+  app.use('/api', requireAuth, createDeliveriesRouter(redisClient));
 
   // 404 fallback
   app.use((_req, res) => {

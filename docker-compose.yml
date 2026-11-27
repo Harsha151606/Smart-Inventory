@@ -71,6 +71,8 @@ services:
       - no-new-privileges:true
     networks:
       - internal
+    volumes:
+      - ./backend/src:/app/src:ro
 
   frontend:
     build:

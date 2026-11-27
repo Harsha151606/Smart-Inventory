@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { config } from './config.js';
 import { computeAuditHash, GENESIS_HASH, hashPassword, signQrPayload } from './security.js';
@@ -169,6 +172,18 @@ export async function initDb() {
     const catCount = Number((await client.query('SELECT COUNT(*)::int AS c FROM categories')).rows[0].c);
     if (catCount === 0) {
       await seedInitialInventory(client);
+    }
+
+    const fleetCheck = await client.query(
+      "SELECT to_regclass('public.vehicles') AS v, to_regclass('public.deliveries') AS d"
+    );
+    if (!fleetCheck.rows[0].v || !fleetCheck.rows[0].d) {
+      const migrationPath = path.resolve(
+        path.dirname(fileURLToPath(import.meta.url)),
+        '../migrations/002_add_vehicles_and_deliveries.sql'
+      );
+      const migrationSql = fs.readFileSync(migrationPath, 'utf8');
+      await client.query(migrationSql);
     }
 
     await client.query('COMMIT');

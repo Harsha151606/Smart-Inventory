@@ -23,7 +23,7 @@ export default function ItemModal({
 
   const [showNewCat, setShowNewCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
-  const [newCatColor, setNewCatColor] = useState('#0ea5e9');
+  const [newCatColor, setNewCatColor] = useState('#1D61E7');
   const [creatingCat, setCreatingCat] = useState(false);
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export default function ItemModal({
     }
     setShowNewCat(false);
     setNewCatName('');
-    setNewCatColor('#0ea5e9');
+    setNewCatColor('#1D61E7');
   }, [isOpen, editingItem]);
 
   useEffect(() => {
@@ -79,7 +79,7 @@ export default function ItemModal({
         method: 'POST',
         body: JSON.stringify({
           name: trimmed,
-          color: newCatColor.trim() || '#0ea5e9'
+          color: newCatColor.trim() || '#1D61E7'
         })
       });
       addToast('Category created');
@@ -142,8 +142,8 @@ export default function ItemModal({
     >
       <div className="modal-box">
         <div className="modal-header">
-          <h3 id="item-modal-title" className="panel-title">
-            {isEdit ? `Edit Item #${editingItem.id}` : 'Add New Item'}
+          <h3 id="item-modal-title" className="modal-title">
+            {isEdit ? `Edit / Restock Item #${editingItem.id}` : 'Add New Inventory Item'}
           </h3>
           <button
             type="button"
@@ -157,35 +157,48 @@ export default function ItemModal({
         </div>
 
         <form id="item-form" className="form-stack" onSubmit={handleSubmit}>
-          <div className="field">
-            <label htmlFor="f-name">Item Name *</label>
-            <input
-              id="f-name"
-              type="text"
-              required
-              maxLength={160}
-              placeholder="e.g., USB-C Cables"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+          <div className="grid-2">
+            <div className="field">
+              <label htmlFor="f-name">Item Name *</label>
+              <input
+                id="f-name"
+                type="text"
+                required
+                maxLength={160}
+                placeholder="e.g., USB-C Cables"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="f-sku">SKU / Slot Code</label>
+              <input
+                id="f-sku"
+                type="text"
+                maxLength={64}
+                placeholder="ELC-USBC-001"
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="grid-2">
             <div className="field">
               <div className="label-row">
-                <label htmlFor="f-cat">Category</label>
+                <label htmlFor="f-cat">Category Zone</label>
                 <button
                   id="btn-new-cat"
                   type="button"
                   className="btn-link"
                   onClick={() => setShowNewCat((prev) => !prev)}
                 >
-                  {showNewCat ? 'Cancel' : '+ New Category'}
+                  {showNewCat ? 'Cancel' : '+ New Zone'}
                 </button>
               </div>
               <select
                 id="f-cat"
-                className="select"
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
               >
@@ -199,14 +212,14 @@ export default function ItemModal({
             </div>
 
             <div className="field">
-              <label htmlFor="f-sku">SKU</label>
+              <label htmlFor="f-unit">Unit</label>
               <input
-                id="f-sku"
+                id="f-unit"
                 type="text"
-                maxLength={64}
-                placeholder="ELC-USBC-001"
-                value={sku}
-                onChange={(e) => setSku(e.target.value)}
+                maxLength={32}
+                placeholder="pcs, rolls, boxes"
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
               />
             </div>
           </div>
@@ -239,7 +252,7 @@ export default function ItemModal({
               <div className="form-actions">
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn btn-primary btn-sm"
                   disabled={creatingCat}
                   onClick={handleCreateCategory}
                 >
@@ -263,7 +276,7 @@ export default function ItemModal({
               />
             </div>
             <div className="field">
-              <label htmlFor="f-thresh">Low Stock Threshold</label>
+              <label htmlFor="f-thresh">Reorder Threshold</label>
               <input
                 id="f-thresh"
                 type="number"
@@ -289,40 +302,25 @@ export default function ItemModal({
             </div>
           </div>
 
-          <div className="grid-2">
-            <div className="field">
-              <label htmlFor="f-unit">Unit</label>
+          {!isEdit && (
+            <label className="checkbox-label">
               <input
-                id="f-unit"
-                type="text"
-                maxLength={32}
-                placeholder="pcs, rolls, boxes"
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
+                id="f-qr"
+                type="checkbox"
+                checked={autoQr}
+                onChange={(e) => setAutoQr(e.target.checked)}
               />
-            </div>
-            {!isEdit && (
-              <div className="field checkbox-wrap">
-                <label className="checkbox-label">
-                  <input
-                    id="f-qr"
-                    type="checkbox"
-                    checked={autoQr}
-                    onChange={(e) => setAutoQr(e.target.checked)}
-                  />
-                  <span>Generate HMAC-signed QR code</span>
-                </label>
-              </div>
-            )}
-          </div>
+              <span>Generate HMAC-signed QR code automatically</span>
+            </label>
+          )}
 
           <div className="field">
-            <label htmlFor="f-desc">Description</label>
+            <label htmlFor="f-desc">Storage Notes / Description</label>
             <textarea
               id="f-desc"
-              rows={3}
+              rows={2}
               maxLength={1000}
-              placeholder="Optional storage location or supplier notes"
+              placeholder="Optional aisle, bin, or supplier notes"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
@@ -330,7 +328,7 @@ export default function ItemModal({
 
           <div className="form-actions">
             <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? 'Saving...' : 'Save Item'}
+              {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Item'}
             </button>
             <button
               id="btn-cancel-form"

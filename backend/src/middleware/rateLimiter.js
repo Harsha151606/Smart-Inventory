@@ -8,7 +8,7 @@ export function createRateLimiter(redisClient, { maxRequests, windowSeconds = 60
     if (!redisClient) return next();
 
     const envMax = Number.parseInt(process.env.RATE_LIMIT_MAX ?? '', 10);
-    const limit = maxRequests ?? (Number.isFinite(envMax) && envMax > 0 ? envMax : 100);
+    const limit = maxRequests ?? (Number.isFinite(envMax) && envMax > 0 ? envMax : 1000);
 
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
     const key = `ratelimit:${ip}`;

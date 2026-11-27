@@ -60,7 +60,13 @@ async function deleteMatchingKeys(redisClient, pattern) {
  */
 export async function invalidateInventoryCache(redisClient, { prefix = 'cache:' } = {}) {
   if (!redisClient) return;
-  const patterns = [`${prefix}/api/items*`, `${prefix}/api/categories*`, `${prefix}/api/analytics*`];
+  const patterns = [
+    `${prefix}/api/items*`,
+    `${prefix}/api/categories*`,
+    `${prefix}/api/analytics*`,
+    `${prefix}/api/vehicles*`,
+    `${prefix}/api/deliveries*`
+  ];
   try {
     await Promise.all(patterns.map((pattern) => deleteMatchingKeys(redisClient, pattern)));
   } catch (err) {

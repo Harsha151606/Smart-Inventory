@@ -1,23 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, setUnauthorizedHandler } from './api.js';
+import {
+  api,
+  setUnauthorizedHandler,
+  fetchVehicles,
+  updateVehicle,
+  deleteVehicle,
+  fetchDeliveries,
+  updateDeliveryStatus
+} from './api.js';
 import { buildInventoryCsv } from './utils/format.js';
 import AuthView from './components/AuthView.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import DashboardView from './components/DashboardView.jsx';
 import InventoryView from './components/InventoryView.jsx';
-import ItemDetailView from './components/ItemDetailView.jsx';
+import DeliveryView from './components/DeliveryView.jsx';
+import VehiclesView from './components/VehiclesView.jsx';
 import AnalyticsView from './components/AnalyticsView.jsx';
 import QrVerifyView from './components/QrVerifyView.jsx';
 import ItemModal from './components/ItemModal.jsx';
+import VehicleModal from './components/VehicleModal.jsx';
 import TeamModal from './components/TeamModal.jsx';
+import ThemeToggle from './components/ThemeToggle.jsx';
 import ToastContainer from './components/ToastContainer.jsx';
 
-const PAGE_META = {
-  dash: ['Dashboard', 'Real-time stock health, alerts, and cryptographic activity'],
-  inv: ['Inventory', 'Search, filter, sort, and adjust SKU quantities atomically'],
-  detail: ['Item Details', 'Stock telemetry, demand forecast, and audit trail'],
-  scan: ['QR Verification', 'Scan or paste QR payloads to validate HMAC-SHA256 signatures'],
-  analytics: ['AI Analytics & Audit', 'Depletion forecasts, threshold recommendations, and SHA-256 ledger checks']
+const PAGE_TITLES = {
+  dash: 'Dashboard',
+  inv: 'Inventory',
+  deliveries: 'Delivery Tracking',
+  vehicles: 'Vehicles',
+  analytics: 'Analytics',
+  scan: 'QR Verify'
 };
 
 const THEME_STORAGE_KEY = 'sim_theme';
@@ -37,6 +49,13 @@ function getInitialTheme() {
     return 'dark';
   }
   return 'light';
+}
+
+function getInitials(name) {
+  const parts = String(name || 'U').trim().split(/\s+/);
+  return parts.length >= 2
+    ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+    : parts[0].slice(0, 2).toUpperCase();
 }
 
 export default function App() {
@@ -63,15 +82,16 @@ export default function App() {
   const [loadingDash, setLoadingDash] = useState(false);
   const [loadingInv, setLoadingInv] = useState(false);
 
-  // Inventory filters
+  // Inventory filters + Zone/Table layout
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [sortBy, setSortBy] = useState('name');
-  const [layout, setLayout] = useState('cards');
+  const [layout, setLayout] = useState('zones');
 
-  // Detail state
+  // Persistent Right-Side Inspector state
+  const [selectedItemId, setSelectedItemId] = useState(null);
   const [detailItem, setDetailItem] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
@@ -82,9 +102,31 @@ export default function App() {
   const [auditResult, setAuditResult] = useState(null);
   const [auditLoading, setAuditLoading] = useState(false);
 
+  // Vehicles & Delivery state
+  const [vehiclesSummary, setVehiclesSummary] = useState({
+    total: 0,
+    available: 0,
+    assigned: 0,
+    service_needed: 0
+  });
+  const [vehicles, setVehicles] = useState([]);
+  const [dispatchVehicles, setDispatchVehicles] = useState([]);
+  const [vehicleSearch, setVehicleSearch] = useState('');
+  const [debouncedVehicleSearch, setDebouncedVehicleSearch] = useState('');
+  const [vehicleStatusFilter, setVehicleStatusFilter] = useState('');
+  const [loadingVehicles, setLoadingVehicles] = useState(false);
+
+  const [deliveries, setDeliveries] = useState([]);
+  const [deliverySearch, setDeliverySearch] = useState('');
+  const [debouncedDeliverySearch, setDebouncedDeliverySearch] = useState('');
+  const [deliveryStatusFilter, setDeliveryStatusFilter] = useState('');
+  const [loadingDeliveries, setLoadingDeliveries] = useState(false);
+
   // Modals
   const [itemModalOpen, setItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState(null);
   const [teamModalOpen, setTeamModalOpen] = useState(false);
 
   const addToast = useCallback((message, type = 'success') => {
@@ -99,7 +141,10 @@ export default function App() {
     setUser(null);
     setDrawerOpen(false);
     setItemModalOpen(false);
+    setVehicleModalOpen(false);
+    setEditingVehicle(null);
     setTeamModalOpen(false);
+    setSelectedItemId(null);
     setDetailItem(null);
   }, []);
 
@@ -109,7 +154,6 @@ export default function App() {
     }
   }, [theme]);
 
-  // Listen for OS color-scheme changes when user has no manual preference in localStorage
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return undefined;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -157,11 +201,20 @@ export default function App() {
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
-  // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 250);
     return () => clearTimeout(timer);
   }, [search]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedVehicleSearch(vehicleSearch.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [vehicleSearch]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedDeliverySearch(deliverySearch.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [deliverySearch]);
 
   // Bootstrap CSRF + Auth check
   useEffect(() => {
@@ -180,7 +233,7 @@ export default function App() {
           setUser(me.user);
         }
       } catch {
-        // Not signed in yet
+        // Not signed in
       }
       if (active) setBootstrapped(true);
     }
@@ -297,36 +350,103 @@ export default function App() {
     [loadForecastForItem, addToast]
   );
 
+  const loadVehicles = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoadingVehicles(true);
+      try {
+        const data = await fetchVehicles({
+          status: vehicleStatusFilter,
+          search: debouncedVehicleSearch
+        });
+        if (data?.summary) setVehiclesSummary(data.summary);
+        const rows = data?.vehicles || [];
+        setVehicles(rows);
+        if (!vehicleStatusFilter && !debouncedVehicleSearch) {
+          setDispatchVehicles(rows);
+        }
+      } catch (err) {
+        if (!silent) addToast(err.message || 'Failed to load vehicles', 'error');
+      } finally {
+        if (!silent) setLoadingVehicles(false);
+      }
+    },
+    [vehicleStatusFilter, debouncedVehicleSearch, addToast]
+  );
+
+  const loadDeliveries = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoadingDeliveries(true);
+      try {
+        const rows = await fetchDeliveries({
+          status: deliveryStatusFilter,
+          search: debouncedDeliverySearch
+        });
+        setDeliveries(rows || []);
+      } catch (err) {
+        if (!silent) addToast(err.message || 'Failed to load deliveries', 'error');
+      } finally {
+        if (!silent) setLoadingDeliveries(false);
+      }
+    },
+    [deliveryStatusFilter, debouncedDeliverySearch, addToast]
+  );
+
+  const loadDispatchResources = useCallback(async () => {
+    try {
+      const [vehicleData, itemRows] = await Promise.all([
+        fetchVehicles(),
+        api('/api/items')
+      ]);
+      if (vehicleData?.summary) setVehiclesSummary(vehicleData.summary);
+      setDispatchVehicles(vehicleData?.vehicles || []);
+      setDashItems(itemRows || []);
+    } catch {
+      // Retain existing dropdown options on transient error
+    }
+  }, []);
+
   // Load categories once on sign-in
   useEffect(() => {
     if (!user) return;
     loadCategories();
   }, [user, loadCategories]);
 
-  // Fetch active view data when view or inventory filters change
+  // Ensure dispatch dropdowns have fresh unfiltered vehicles and inventory when opening deliveries
+  useEffect(() => {
+    if (!user || currentView !== 'deliveries') return;
+    loadDispatchResources();
+  }, [user, currentView, loadDispatchResources]);
+
+  // Fetch active view data when view or filters change
   useEffect(() => {
     if (!user) return;
     if (currentView === 'dash') {
       loadDashboard();
     } else if (currentView === 'inv') {
       loadItems();
+    } else if (currentView === 'vehicles') {
+      loadVehicles();
+    } else if (currentView === 'deliveries') {
+      loadDeliveries();
     } else if (currentView === 'analytics') {
       loadAnalytics();
     }
-  }, [user, currentView, loadDashboard, loadItems, loadAnalytics]);
+  }, [user, currentView, loadDashboard, loadItems, loadVehicles, loadDeliveries, loadAnalytics]);
 
-  // Auto-sync active view every 20s when tab is visible
+  // Auto-sync active view every 20s when visible
   useEffect(() => {
     if (!user) return undefined;
     const timer = setInterval(() => {
       if (document.hidden) return;
       if (currentView === 'dash') loadDashboard(true);
       if (currentView === 'inv') loadItems(true);
+      if (currentView === 'vehicles') loadVehicles(true);
+      if (currentView === 'deliveries') loadDeliveries(true);
     }, 20000);
     return () => clearInterval(timer);
-  }, [user, currentView, loadDashboard, loadItems]);
+  }, [user, currentView, loadDashboard, loadItems, loadVehicles, loadDeliveries]);
 
-  // Refetch ONLY active view data after mutations to avoid 429 rate-limit bursts
+  // Refetch ONLY the active view data after mutations to avoid 429 bursts
   const refreshActiveView = useCallback(
     async (targetItemId = null, { includeCategories = false } = {}) => {
       if (includeCategories) {
@@ -336,13 +456,30 @@ export default function App() {
         await loadDashboard(true);
       } else if (currentView === 'inv') {
         await loadItems(true);
-      } else if (currentView === 'detail' && (targetItemId || detailItem?.id)) {
-        await loadItemDetail(targetItemId || detailItem.id, { silent: true });
+        const inspectorId = targetItemId || selectedItemId;
+        if (inspectorId && detailItem?.id === inspectorId) {
+          await loadItemDetail(inspectorId, { silent: true });
+        }
+      } else if (currentView === 'vehicles') {
+        await loadVehicles(true);
+      } else if (currentView === 'deliveries') {
+        await loadDeliveries(true);
       } else if (currentView === 'analytics') {
         await loadAnalytics(true);
       }
     },
-    [currentView, detailItem, loadCategories, loadDashboard, loadItems, loadItemDetail, loadAnalytics]
+    [
+      currentView,
+      selectedItemId,
+      detailItem,
+      loadCategories,
+      loadDashboard,
+      loadItems,
+      loadItemDetail,
+      loadVehicles,
+      loadDeliveries,
+      loadAnalytics
+    ]
   );
 
   function updateLocalQuantity(itemId, nextQuantity) {
@@ -406,10 +543,10 @@ export default function App() {
       await api(`/api/items/${item.id}`, { method: 'DELETE' });
       setItems((prev) => prev.filter((it) => it.id !== item.id));
       setDashItems((prev) => prev.filter((it) => it.id !== item.id));
+      setSelectedItemId(null);
       setDetailItem(null);
       addToast('Item deleted');
-      setCurrentView('inv');
-      await loadCategories();
+      await refreshActiveView(null, { includeCategories: true });
     } catch (err) {
       addToast(err.message || 'Failed to delete item', 'error');
     }
@@ -430,29 +567,78 @@ export default function App() {
     setDashItems(mergeItem);
     setDetailItem((prev) => (prev && prev.id === saved.id ? { ...prev, ...saved } : prev));
 
-    if (isEdit && currentView === 'detail') {
-      await refreshActiveView(saved.id, { includeCategories: true });
-    } else if (currentView === 'inv') {
-      await refreshActiveView(saved.id, { includeCategories: true });
-    } else {
-      setCurrentView('inv');
-      await loadCategories();
-    }
+    await refreshActiveView(isEdit ? saved.id : null, { includeCategories: true });
   }
 
   async function handleSelectItem(id) {
-    setCurrentView('detail');
+    setCurrentView('inv');
+    setSelectedItemId(id);
     await loadItemDetail(id);
-  }
-
-  async function handleEditItem(item) {
-    setEditingItem(item);
-    setItemModalOpen(true);
   }
 
   function handleOpenAddItem() {
     setEditingItem(null);
     setItemModalOpen(true);
+  }
+
+  function handleOpenEditModal(item) {
+    setEditingItem(item);
+    setItemModalOpen(true);
+  }
+
+  function handleOpenAddVehicle() {
+    setEditingVehicle(null);
+    setVehicleModalOpen(true);
+  }
+
+  function handleOpenEditVehicle(vehicle) {
+    setEditingVehicle(vehicle);
+    setVehicleModalOpen(true);
+  }
+
+  async function handleQuickVehicleStatus(id, nextStatus) {
+    try {
+      const updated = await updateVehicle(id, { status: nextStatus });
+      addToast(`Vehicle ${updated.plate_number} marked ${updated.status.replace('_', ' ')}`);
+      await loadVehicles(true);
+    } catch (err) {
+      addToast(err.message || 'Failed to update vehicle status', 'error');
+    }
+  }
+
+  async function handleDeleteVehicle(vehicle) {
+    if (!window.confirm(`Remove vehicle "${vehicle.plate_number}" from fleet?`)) return;
+    try {
+      await deleteVehicle(vehicle.id);
+      addToast(`Removed vehicle ${vehicle.plate_number}`);
+      await loadVehicles(true);
+    } catch (err) {
+      addToast(err.message || 'Failed to remove vehicle', 'error');
+    }
+  }
+
+  async function handleVehicleSaved() {
+    setVehicleModalOpen(false);
+    setEditingVehicle(null);
+    await loadVehicles(true);
+  }
+
+  async function handleUpdateDeliveryStatus(id, nextStatus) {
+    try {
+      const updated = await updateDeliveryStatus(id, nextStatus);
+      setDeliveries((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+      addToast(`Delivery ${updated.tracking_code} marked ${updated.status.replace('_', ' ')}`);
+      await loadDeliveries(true);
+      if (updated.status === 'delivered') {
+        await loadDispatchResources();
+      }
+    } catch (err) {
+      addToast(err.message || 'Failed to update delivery status', 'error');
+    }
+  }
+
+  async function handleDeliveryCreated() {
+    await Promise.all([loadDeliveries(true), loadDispatchResources()]);
   }
 
   async function handleVerifyAuditChain() {
@@ -469,23 +655,6 @@ export default function App() {
       addToast(err.message || 'Audit verification failed', 'error');
     } finally {
       setAuditLoading(false);
-    }
-  }
-
-  async function handleSyncStock() {
-    try {
-      const res = await api('/api/check-stock', {
-        method: 'POST',
-        body: JSON.stringify({})
-      });
-      addToast(`Stock check complete (${res.alerts_created} new alerts)`);
-      if (currentView === 'dash') {
-        await loadDashboard(true);
-      } else if (currentView === 'analytics') {
-        await loadAnalytics(true);
-      }
-    } catch (err) {
-      addToast(err.message || 'Stock check failed', 'error');
     }
   }
 
@@ -526,9 +695,17 @@ export default function App() {
     addToast('Signed out');
   }
 
-  const alertSource = dashItems.length ? dashItems : items;
-  const alertItems = alertSource.filter((i) => i.quantity <= i.threshold);
-  const [pageTitle, pageSubtitle] = PAGE_META[currentView] || ['Smart Inventory', ''];
+  function handleGlobalSearchKeyDown(e) {
+    if (e.key === 'Enter') {
+      setDebouncedSearch(search.trim());
+      if (currentView !== 'inv') {
+        setCurrentView('inv');
+      }
+    }
+  }
+
+  const isAdmin = String(user?.role || '').toLowerCase() === 'admin';
+  const pageTitle = PAGE_TITLES[currentView] || 'Smart Inventory';
 
   return (
     <>
@@ -537,7 +714,7 @@ export default function App() {
       {!bootstrapped ? (
         <div className="auth-screen">
           <div className="auth-card">
-            <p className="muted-text">Initializing secure session...</p>
+            <p className="muted-text">Initializing secure session…</p>
           </div>
         </div>
       ) : !user ? (
@@ -559,16 +736,14 @@ export default function App() {
             isOpen={drawerOpen}
             onClose={() => setDrawerOpen(false)}
             onNavigate={(view) => setCurrentView(view)}
-            onOpenAddItem={handleOpenAddItem}
             onOpenTeam={() => setTeamModalOpen(true)}
             onLogout={handleLogout}
-            theme={theme}
-            onToggleTheme={handleToggleTheme}
           />
 
           <div className="main-wrap">
+            {/* Minimal Enterprise Top Header Bar */}
             <header className="topbar">
-              <div className="topbar-title-group">
+              <div className="topbar-left">
                 <button
                   type="button"
                   className="hamburger-btn"
@@ -583,9 +758,35 @@ export default function App() {
                     <span />
                   </span>
                 </button>
-                <div>
-                  <h2 id="page-title" className="page-title">{pageTitle}</h2>
-                  <p id="page-subtitle" className="page-subtitle">{pageSubtitle}</p>
+
+                <h1 id="page-title" className="page-title">{pageTitle}</h1>
+
+                <div className="global-search-wrap">
+                  <svg
+                    className="global-search-icon"
+                    viewBox="0 0 24 24"
+                    width="15"
+                    height="15"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.3-4.3" />
+                  </svg>
+                  <input
+                    id="global-search"
+                    type="search"
+                    className="global-search-input"
+                    placeholder="Search SKU, item, or zone…"
+                    aria-label="Global inventory search"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={handleGlobalSearchKeyDown}
+                  />
                 </div>
               </div>
 
@@ -593,65 +794,53 @@ export default function App() {
                 <button
                   id="btn-export-csv"
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn btn-secondary btn-sm"
                   onClick={handleExportCsv}
                 >
                   Export CSV
                 </button>
-                <button
-                  id="btn-sync-stock"
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={handleSyncStock}
-                >
-                  Sync Alerts
-                </button>
-                <button
-                  id="btn-quick-add"
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleOpenAddItem}
-                >
-                  + Add Item
-                </button>
+
+                <ThemeToggle
+                  id="btn-theme-toggle"
+                  theme={theme}
+                  onToggle={handleToggleTheme}
+                  className="btn theme-toggle-btn"
+                />
+
+                {isAdmin && (
+                  <button
+                    id="btn-manage-users"
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setTeamModalOpen(true)}
+                  >
+                    Manage Team
+                  </button>
+                )}
+
+                <div className="user-chip" title={`${user.name} (${user.role})`}>
+                  <div className="user-avatar" aria-hidden="true">
+                    {getInitials(user.name)}
+                  </div>
+                  <div className="user-chip-meta">
+                    <span className="user-chip-name">{user.name}</span>
+                    <span className="user-chip-role">{user.role}</span>
+                  </div>
+                </div>
               </div>
             </header>
-
-            {alertItems.length > 0 && (
-              <div id="alert-banner" className="alert-banner" role="status">
-                <span className="tabular-nums">
-                  {`${alertItems.length} item(s) need attention: ${alertItems
-                    .slice(0, 3)
-                    .map((i) => i.name)
-                    .join(', ')}`}
-                </span>
-                <button
-                  id="btn-view-low"
-                  type="button"
-                  className="btn-link"
-                  onClick={() => {
-                    setStatusFilter('low');
-                    setCurrentView('inv');
-                  }}
-                >
-                  Review low stock
-                </button>
-              </div>
-            )}
 
             <main className="content">
               {currentView === 'dash' && (
                 <DashboardView
                   items={dashItems}
+                  categories={categories}
                   insights={insights}
                   transactions={transactions}
                   loading={loadingDash}
-                  onApplyThreshold={handleApplyThreshold}
-                  onOpenAnalytics={() => setCurrentView('analytics')}
-                  onVerifyChain={async () => {
-                    setCurrentView('analytics');
-                    await handleVerifyAuditChain();
-                  }}
+                  theme={theme}
+                  onAddStock={handleOpenEditModal}
+                  onSelectItem={handleSelectItem}
                 />
               )}
 
@@ -671,29 +860,55 @@ export default function App() {
                   layout={layout}
                   onLayoutChange={setLayout}
                   isMobile={isMobile}
-                  onQuickUpdate={handleQuickUpdate}
-                  onSelectItem={handleSelectItem}
-                  onOpenAddItem={handleOpenAddItem}
-                />
-              )}
-
-              {currentView === 'detail' && (
-                <ItemDetailView
-                  item={detailItem}
+                  selectedItemId={selectedItemId}
+                  detailItem={detailItem}
+                  loadingDetail={loadingDetail}
                   user={user}
-                  loading={loadingDetail}
                   theme={theme}
-                  onBack={() => setCurrentView('inv')}
+                  onSelectItem={handleSelectItem}
+                  onCloseInspector={() => {
+                    setSelectedItemId(null);
+                    setDetailItem(null);
+                  }}
                   onQuickUpdate={handleQuickUpdate}
-                  onEdit={handleEditItem}
-                  onDelete={handleDeleteItem}
+                  onOpenAddItem={handleOpenAddItem}
+                  onEditItem={handleOpenEditModal}
+                  onDeleteItem={handleDeleteItem}
                   onApplyThreshold={handleApplyThreshold}
                   addToast={addToast}
                 />
               )}
 
-              {currentView === 'scan' && (
-                <QrVerifyView onOpenItem={handleSelectItem} addToast={addToast} />
+              {currentView === 'deliveries' && (
+                <DeliveryView
+                  deliveries={deliveries}
+                  vehicles={dispatchVehicles.length ? dispatchVehicles : vehicles}
+                  items={dashItems.length ? dashItems : items}
+                  loading={loadingDeliveries}
+                  search={deliverySearch}
+                  onSearchChange={setDeliverySearch}
+                  statusFilter={deliveryStatusFilter}
+                  onStatusFilterChange={setDeliveryStatusFilter}
+                  onUpdateStatus={handleUpdateDeliveryStatus}
+                  onDeliveryCreated={handleDeliveryCreated}
+                  addToast={addToast}
+                />
+              )}
+
+              {currentView === 'vehicles' && (
+                <VehiclesView
+                  summary={vehiclesSummary}
+                  vehicles={vehicles}
+                  loading={loadingVehicles}
+                  search={vehicleSearch}
+                  onSearchChange={setVehicleSearch}
+                  statusFilter={vehicleStatusFilter}
+                  onStatusFilterChange={setVehicleStatusFilter}
+                  onOpenAddVehicle={handleOpenAddVehicle}
+                  onEditVehicle={handleOpenEditVehicle}
+                  onQuickStatusChange={handleQuickVehicleStatus}
+                  onDeleteVehicle={handleDeleteVehicle}
+                />
               )}
 
               {currentView === 'analytics' && (
@@ -715,6 +930,10 @@ export default function App() {
                   onInspectItem={handleSelectItem}
                 />
               )}
+
+              {currentView === 'scan' && (
+                <QrVerifyView onOpenItem={handleSelectItem} addToast={addToast} />
+              )}
             </main>
           </div>
 
@@ -728,6 +947,17 @@ export default function App() {
             }}
             onSaved={handleItemSaved}
             onCategoryCreated={loadCategories}
+            addToast={addToast}
+          />
+
+          <VehicleModal
+            isOpen={vehicleModalOpen}
+            editingVehicle={editingVehicle}
+            onClose={() => {
+              setVehicleModalOpen(false);
+              setEditingVehicle(null);
+            }}
+            onSaved={handleVehicleSaved}
             addToast={addToast}
           />
 

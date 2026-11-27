@@ -15,6 +15,7 @@ RUN groupadd --gid 10001 appgroup \
 COPY --from=builder --chown=10001:10001 /build/node_modules ./node_modules
 COPY --chown=10001:10001 package.json ./
 COPY --chown=10001:10001 src ./src
+COPY --chown=10001:10001 migrations ./migrations
 
 USER 10001:10001
 EXPOSE 8000

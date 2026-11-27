@@ -67,6 +67,42 @@ export const qrVerifySchema = z.object({
   payload: z.string().trim().min(1).max(2048)
 }).strict();
 
+export const vehicleCreateSchema = z.object({
+  plate_number: z.string().trim().min(2, 'Plate number is required').max(32),
+  model: z.string().trim().min(1, 'Model is required').max(120),
+  cargo_type: z.string().trim().min(1, 'Cargo type is required').max(80),
+  capacity_cubic_m: z.number().positive('Capacity must be greater than 0').max(100000),
+  current_load_pct: z.number().int().min(0).max(100).default(0),
+  status: z.enum(['available', 'assigned', 'service_needed']).default('available'),
+  last_service_date: z.union([z.string().trim().min(1).max(64), z.null()]).optional()
+}).strict();
+
+export const vehicleUpdateSchema = z.object({
+  plate_number: z.string().trim().min(2).max(32).optional(),
+  model: z.string().trim().min(1).max(120).optional(),
+  cargo_type: z.string().trim().min(1).max(80).optional(),
+  capacity_cubic_m: z.number().positive().max(100000).optional(),
+  current_load_pct: z.number().int().min(0).max(100).optional(),
+  status: z.enum(['available', 'assigned', 'service_needed']).optional(),
+  last_service_date: z.union([z.string().trim().min(1).max(64), z.null()]).optional()
+}).strict().refine((data) => Object.keys(data).length > 0, {
+  message: 'At least one field must be provided'
+});
+
+export const deliveryCreateSchema = z.object({
+  tracking_code: z.string().trim().min(3).max(64).optional(),
+  vehicle_id: z.number().int().positive('Vehicle is required'),
+  item_id: z.number().int().positive('Item is required'),
+  quantity: z.number().int().min(1, 'Quantity must be at least 1').max(1000000),
+  origin: z.string().trim().min(2, 'Origin is required').max(160),
+  destination: z.string().trim().min(2, 'Destination is required').max(160),
+  eta: z.union([z.string().trim().min(1).max(64), z.null()]).optional()
+}).strict();
+
+export const deliveryStatusUpdateSchema = z.object({
+  status: z.enum(['pending', 'in_transit', 'delivered', 'delayed'])
+}).strict();
+
 export function parseBody(schema, req, res) {
   const result = schema.safeParse(req.body);
   if (!result.success) {
