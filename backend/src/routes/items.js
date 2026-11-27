@@ -8,6 +8,7 @@ import {
   suggestThreshold
 } from '../aiEngine.js';
 import { requireRole, signQrPayload, verifyQrPayload } from '../security.js';
+import { invalidateInventoryCache } from '../middleware/cache.js';
 import {
   itemCreateSchema,
   itemUpdateSchema,
@@ -38,7 +39,7 @@ async function generateQrBase64(payload) {
   return dataUrl.replace(/^data:image\/png;base64,/, '');
 }
 
-export function createItemsRouter() {
+export function createItemsRouter(redisClient = null) {
   const router = Router();
 
   router.get('/items', async (req, res, next) => {
@@ -129,6 +130,7 @@ export function createItemsRouter() {
         [itemId]
       );
       await client.query('COMMIT');
+      await invalidateInventoryCache(redisClient);
       const item = itemRes.rows[0];
       return res.status(201).json({ ...item, unit_price: Number(item.unit_price) });
     } catch (err) {
@@ -242,6 +244,7 @@ export function createItemsRouter() {
         [itemId]
       );
       await client.query('COMMIT');
+      await invalidateInventoryCache(redisClient);
       const item = updatedRes.rows[0];
       return res.json({ ...item, unit_price: Number(item.unit_price) });
     } catch (err) {
@@ -286,6 +289,7 @@ export function createItemsRouter() {
       });
 
       await client.query('COMMIT');
+      await invalidateInventoryCache(redisClient);
       return res.json({ success: true, record_hash: log.record_hash });
     } catch (err) {
       await client.query('ROLLBACK');
@@ -357,6 +361,7 @@ export function createItemsRouter() {
       });
 
       await client.query('COMMIT');
+      await invalidateInventoryCache(redisClient);
       return res.json({ quantity: newQty, record_hash: log.record_hash });
     } catch (err) {
       await client.query('ROLLBACK');

@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { pool } from '../db.js';
 import { requireRole } from '../security.js';
+import { invalidateInventoryCache } from '../middleware/cache.js';
 import { categoryCreateSchema, parseBody } from '../validation.js';
 
-export function createCategoriesRouter() {
+export function createCategoriesRouter(redisClient = null) {
   const router = Router();
 
   router.get('/categories', async (_req, res, next) => {
@@ -29,6 +30,7 @@ export function createCategoriesRouter() {
         'INSERT INTO categories (name, description, color) VALUES ($1, $2, $3) RETURNING *',
         [data.name, data.description, data.color]
       );
+      await invalidateInventoryCache(redisClient);
       return res.status(201).json(rows[0]);
     } catch (err) {
       if (err.code === '23505') {
@@ -43,6 +45,7 @@ export function createCategoriesRouter() {
       const id = Number(req.params.id);
       if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid category ID' });
       await pool.query('DELETE FROM categories WHERE id = $1', [id]);
+      await invalidateInventoryCache(redisClient);
       return res.json({ success: true });
     } catch (err) {
       return next(err);

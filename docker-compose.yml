@@ -60,6 +60,8 @@ services:
       ADMIN_NAME: ${ADMIN_NAME:-Admin}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
+      DISABLE_CACHE: ${DISABLE_CACHE:-false}
     read_only: true
     tmpfs:
       - /tmp:size=64M,noexec,nosuid,mode=1777
@@ -90,6 +92,7 @@ services:
       - no-new-privileges:true
     networks:
       - internal
+      - default
 
 volumes:
   pgdata:

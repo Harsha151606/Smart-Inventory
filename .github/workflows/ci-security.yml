@@ -29,7 +29,7 @@ jobs:
         with:
           node-version: "22"
       - run: |
-          for f in backend/src/*.js backend/src/routes/*.js frontend/js/*.js; do
+          for f in backend/src/*.js backend/src/routes/*.js frontend/src/*.js; do
             node --check "$f"
           done
 

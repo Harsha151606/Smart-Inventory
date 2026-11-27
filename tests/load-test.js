@@ -17,32 +17,84 @@ export const options = {
   },
 };
 
-// Setup: login once and return auth cookies + a test item ID
-export function setup() {
-  // Get CSRF token
-  const csrfRes = http.get(`${BASE_URL}/api/auth/csrf`);
-  const csrfCookies = csrfRes.cookies;
+function extractCookies(res, target = {}) {
+  for (const [name, cookieList] of Object.entries(res.cookies || {})) {
+    if (Array.isArray(cookieList) && cookieList.length > 0) {
+      target[name] = cookieList[cookieList.length - 1].value;
+    }
+  }
+  return target;
+}
 
-  // Login  
+function authParams(data, method = 'GET', extraHeaders = {}) {
+  const headers = Object.assign({}, extraHeaders);
+  const upper = method.toUpperCase();
+  if ((upper === 'POST' || upper === 'PATCH' || upper === 'PUT' || upper === 'DELETE') && data.csrfToken) {
+    headers['X-CSRF-Token'] = data.csrfToken;
+  }
+  return {
+    cookies: data.cookies || {},
+    headers,
+  };
+}
+
+// Setup: fetch CSRF cookie, login once, extract all cookies, and forward to VUs
+export function setup() {
+  // 1. Fetch CSRF cookie and token from /api/auth/csrf
+  const csrfRes = http.get(`${BASE_URL}/api/auth/csrf`);
+  if (csrfRes.status !== 200) {
+    throw new Error(`CSRF fetch failed (HTTP ${csrfRes.status}): ${csrfRes.body}`);
+  }
+
+  const sessionCookies = extractCookies(csrfRes);
+  let csrfToken = sessionCookies.csrf_token || '';
+  if (!csrfToken) {
+    try {
+      csrfToken = csrfRes.json('csrfToken') || '';
+    } catch {
+      csrfToken = '';
+    }
+  }
+  if (!csrfToken) {
+    throw new Error(`Missing csrf_token cookie/token from /api/auth/csrf: ${csrfRes.body}`);
+  }
+  sessionCookies.csrf_token = csrfToken;
+
+  // 2. Login with csrf_token cookie + X-CSRF-Token header
   const loginPayload = JSON.stringify({
     email: __ENV.ADMIN_EMAIL || 'admin@inventory.local',
     password: __ENV.ADMIN_PASSWORD || 'Adm!96a5de98ce219Z',
   });
 
-  const loginRes = http.post(`${BASE_URL}/api/auth/login`, loginPayload, {
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfCookies.csrf_token ? csrfCookies.csrf_token[0].value : '',
-    },
-  });
+  const loginRes = http.post(
+    `${BASE_URL}/api/auth/login`,
+    loginPayload,
+    authParams(
+      { cookies: sessionCookies, csrfToken },
+      'POST',
+      { 'Content-Type': 'application/json' }
+    )
+  );
+
+  console.log(`[setup] POST /api/auth/login -> status=${loginRes.status} body=${loginRes.body}`);
 
   if (loginRes.status !== 200) {
-    console.error(`Login failed: ${loginRes.status} ${loginRes.body}`);
-    return { authenticated: false };
+    throw new Error(`Login failed (HTTP ${loginRes.status}): ${loginRes.body}`);
   }
 
-  // Get item list to find a valid item ID for stock endpoint testing
-  const itemsRes = http.get(`${BASE_URL}/api/items`);
+  // Extract all cookies (access_token, refresh_token, csrf_token) from res.cookies
+  extractCookies(loginRes, sessionCookies);
+  csrfToken = sessionCookies.csrf_token || csrfToken;
+
+  if (!sessionCookies.access_token) {
+    throw new Error('Login succeeded (HTTP 200) but access_token session cookie was not set');
+  }
+
+  // 3. Get item list to find a valid item ID for stock endpoint testing
+  const itemsRes = http.get(
+    `${BASE_URL}/api/items`,
+    authParams({ cookies: sessionCookies, csrfToken }, 'GET')
+  );
   let testItemId = 1;
   if (itemsRes.status === 200) {
     const items = JSON.parse(itemsRes.body);
@@ -51,18 +103,17 @@ export function setup() {
     }
   }
 
-  return { authenticated: true, testItemId };
+  return { authenticated: true, testItemId, cookies: sessionCookies, csrfToken };
 }
 
 export default function (data) {
-  if (!data.authenticated) {
-    console.error('Skipping: not authenticated');
-    return;
+  if (!data || !data.authenticated) {
+    throw new Error('Aborting VU: setup() did not provide an authenticated session');
   }
 
   // Scenario 1: GET product catalog (read-heavy)
   const catalogStart = Date.now();
-  const catalogRes = http.get(`${BASE_URL}/api/items`);
+  const catalogRes = http.get(`${BASE_URL}/api/items`, authParams(data, 'GET'));
   catalogLatency.add(Date.now() - catalogStart);
   const catalogOk = check(catalogRes, {
     'catalog status 200': (r) => r.status === 200,
@@ -75,14 +126,14 @@ export default function (data) {
   sleep(0.3);
 
   // Scenario 2: GET categories
-  const catRes = http.get(`${BASE_URL}/api/categories`);
+  const catRes = http.get(`${BASE_URL}/api/categories`, authParams(data, 'GET'));
   check(catRes, { 'categories status 200': (r) => r.status === 200 });
 
   sleep(0.2);
 
   // Scenario 3: GET single item with stock (live stock query)
   const stockStart = Date.now();
-  const stockRes = http.get(`${BASE_URL}/api/items/${data.testItemId}`);
+  const stockRes = http.get(`${BASE_URL}/api/items/${data.testItemId}`, authParams(data, 'GET'));
   stockLatency.add(Date.now() - stockStart);
   const stockOk = check(stockRes, {
     'stock status 200': (r) => r.status === 200,
@@ -95,16 +146,16 @@ export default function (data) {
   sleep(0.3);
 
   // Scenario 4: GET analytics
-  const analyticsRes = http.get(`${BASE_URL}/api/analytics`);
+  const analyticsRes = http.get(`${BASE_URL}/api/analytics`, authParams(data, 'GET'));
   check(analyticsRes, { 'analytics status 200': (r) => r.status === 200 });
 
   sleep(0.2);
 
   // Scenario 5: GET health probes (always available)
-  const liveRes = http.get(`${BASE_URL}/health/live`);
+  const liveRes = http.get(`${BASE_URL}/health/live`, authParams(data, 'GET'));
   check(liveRes, { 'liveness 200': (r) => r.status === 200 });
 
-  const readyRes = http.get(`${BASE_URL}/health/ready`);
+  const readyRes = http.get(`${BASE_URL}/health/ready`, authParams(data, 'GET'));
   check(readyRes, { 'readiness 200': (r) => r.status === 200 });
 
   sleep(0.5);

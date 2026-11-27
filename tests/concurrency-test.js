@@ -56,13 +56,14 @@ async function api(method, path, { body, cookies = {}, csrfToken, idempotencyKey
   if (Object.keys(cookies).length) {
     headers['Cookie'] = cookieHeader(cookies);
   }
-  if (csrfToken) {
-    headers['x-csrf-token'] = csrfToken;
+  const upperMethod = method.toUpperCase();
+  if (csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes(upperMethod)) {
+    headers['X-CSRF-Token'] = csrfToken;
   }
   if (idempotencyKey) {
     headers['Idempotency-Key'] = idempotencyKey;
   }
-  const opts = { method, headers };
+  const opts = { method: upperMethod, headers };
   if (body !== undefined) {
     opts.body = JSON.stringify(body);
   }
@@ -85,17 +86,34 @@ async function main() {
   console.log(`\n🔧 Concurrency test — ${CONCURRENCY} simultaneous decrements on quantity=1 item`);
   console.log(`   API_URL: ${API_URL}\n`);
 
-  // 1. Login
-  console.log('1️⃣  Logging in…');
+  // 1. Fetch CSRF cookie & login
+  console.log('1️⃣  Fetching CSRF token & logging in…');
+  const csrfRes = await api('GET', '/auth/csrf');
+  if (csrfRes.status !== 200) {
+    console.error(`   ❌ CSRF fetch failed (${csrfRes.status}):`, csrfRes.json);
+    process.exit(1);
+  }
+  const cookies = parseCookies(csrfRes.response);
+  let csrfToken = cookies['csrf_token'] || csrfRes.json?.csrfToken || '';
+  if (!csrfToken) {
+    console.error('   ❌ Failed to obtain CSRF token from /auth/csrf');
+    process.exit(1);
+  }
+  if (!cookies['csrf_token']) {
+    cookies['csrf_token'] = csrfToken;
+  }
+
   const loginRes = await api('POST', '/auth/login', {
+    cookies,
+    csrfToken,
     body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
   });
   if (loginRes.status !== 200) {
     console.error(`   ❌ Login failed (${loginRes.status}):`, loginRes.json);
     process.exit(1);
   }
-  const cookies = parseCookies(loginRes.response);
-  const csrfToken = cookies['csrf_token'] || cookies['csrfToken'] || '';
+  Object.assign(cookies, parseCookies(loginRes.response));
+  csrfToken = cookies['csrf_token'] || csrfToken;
   console.log('   ✅ Logged in');
 
   // 2. Create test item with quantity = 1

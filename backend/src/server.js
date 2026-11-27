@@ -83,9 +83,12 @@ function buildApp(redisClient) {
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
 
+  const envRateLimit = Number.parseInt(process.env.RATE_LIMIT_MAX ?? '', 10);
+  const apiLimiterMax = Number.isFinite(envRateLimit) && envRateLimit > 180 ? envRateLimit : 180;
+
   const apiLimiter = makeLimiter(redisClient, {
     windowMs: 60 * 1000,
-    max: 180,
+    max: apiLimiterMax,
     prefix: 'rl:api:',
     message: 'Too many requests. Slow down and try again.'
   });
@@ -153,9 +156,9 @@ function buildApp(redisClient) {
   app.use('/api', requireAuth, createIdempotencyMiddleware(redisClient));
 
   // Protected inventory endpoints
-  app.use('/api', requireAuth, createItemsRouter());
-  app.use('/api', requireAuth, createCategoriesRouter());
-  app.use('/api', requireAuth, createAnalyticsRouter());
+  app.use('/api', requireAuth, createItemsRouter(redisClient));
+  app.use('/api', requireAuth, createCategoriesRouter(redisClient));
+  app.use('/api', requireAuth, createAnalyticsRouter(redisClient));
 
   // 404 fallback
   app.use((_req, res) => {

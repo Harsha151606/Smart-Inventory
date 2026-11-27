@@ -9,8 +9,9 @@ import {
   suggestThreshold
 } from '../aiEngine.js';
 import { computeAuditHash, GENESIS_HASH, safeEqualHex } from '../security.js';
+import { invalidateInventoryCache } from '../middleware/cache.js';
 
-export function createAnalyticsRouter() {
+export function createAnalyticsRouter(redisClient = null) {
   const router = Router();
 
   router.get('/analytics', async (_req, res, next) => {
@@ -83,6 +84,7 @@ export function createAnalyticsRouter() {
   router.post('/check-stock', async (_req, res, next) => {
     try {
       const created = await runStockCheck();
+      await invalidateInventoryCache(redisClient);
       return res.json({ success: true, alerts_created: created });
     } catch (err) {
       return next(err);

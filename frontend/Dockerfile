@@ -1,11 +1,20 @@
+# Stage 1: Build static React + Vite production bundle
+FROM node:22-slim AS builder
+WORKDIR /build
+COPY package.json package-lock.json* ./
+RUN npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+COPY index.html vite.config.js ./
+COPY public ./public
+COPY src ./src
+RUN npm run build
+
+# Stage 2: Minimal unprivileged Nginx runtime
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 
 USER root
 RUN rm -f /etc/nginx/conf.d/default.conf
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --chown=101:101 index.html /usr/share/nginx/html/index.html
-COPY --chown=101:101 css /usr/share/nginx/html/css
-COPY --chown=101:101 js /usr/share/nginx/html/js
+COPY --from=builder --chown=101:101 /build/dist /usr/share/nginx/html
 
 USER 101:101
 EXPOSE 8080
